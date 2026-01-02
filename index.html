@@ -41,7 +41,7 @@
                 // Pathname usually starts with /RepoName/
                 const repo = window.location.pathname.split('/')[1];
                 if (user && repo) {
-                    statsUrl = `https://raw.githubusercontent.com/${user}/${repo}/main/stats.json`;
+                    statsUrl = `https://raw.githubusercontent.com/${user}/${repo}/refs/heads/master/stats.json`;
                 }
             }
 
