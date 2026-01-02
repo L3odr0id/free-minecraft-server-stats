@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - 'index.html'
+  workflow_dispatch: # Allows manual testing
 
 permissions: read-all
 
