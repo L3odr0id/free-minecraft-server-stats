@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Minecraft Server Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .chart-container {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 50px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Server Dashboard</h1>
+
+    <div class="chart-container">
+        <h3>Player Count</h3>
+        <canvas id="playerChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h3>Server Status (Online/Offline)</h3>
+        <canvas id="statusChart"></canvas>
+    </div>
+
+    <script>
+        async function loadDashboard() {
+            let statsUrl = 'stats.json';
+
+            if (window.location.hostname.endsWith('github.io')) {
+                const user = window.location.hostname.split('.')[0];
+                // Pathname usually starts with /RepoName/
+                const repo = window.location.pathname.split('/')[1];
+                if (user && repo) {
+                    statsUrl = `https://raw.githubusercontent.com/${user}/${repo}/main/stats.json`;
+                }
+            }
+
+            // Add cache busting
+            statsUrl += `?t=${new Date().getTime()}`;
+
+            const response = await fetch(statsUrl);
+            const data = await response.json();
+
+            const labels = data.map(entry => {
+                return new Date(entry.time).toLocaleString([], {
+                    year: 'numeric',
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            });
+
+            const playerCounts = data.map(entry => entry.players);
+
+            const statusValues = data.map(entry => entry.online ? 1 : 0);
+
+            new Chart(document.getElementById('playerChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Players Online',
+                        data: playerCounts,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+
+            new Chart(document.getElementById('statusChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Status',
+                        data: statusValues,
+                        borderColor: '#2ecc71',
+                        borderWidth: 2,
+                        fill: false,
+                        stepped: true // This makes the line "square" (binary)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            min: -0.1, // Add small padding so the line doesn't hug the edge
+                            max: 1.1,
+                            ticks: {
+                                callback: function (value) {
+                                    if (value === 1) return 'ONLINE';
+                                    if (value === 0) return 'OFFLINE';
+                                    return '';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return context.raw === 1 ? ' Status: Online' : ' Status: Offline';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        loadDashboard();
+    </script>
+</body>
+
+</html>
