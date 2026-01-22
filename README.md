@@ -24,3 +24,10 @@ Go to your forked repository's **Settings** -> **Secrets and variables** -> **Ac
 Once configured, the tracker will run automatically every ~10 minutes. 
 - You can view the dashboard at `https://<your-username>.github.io/<your-repo-name>/`.
 - Make sure to enable **GitHub Pages** in Settings -> Pages (set source to `gh-pages` branch, which will appear after the first successful deploy).
+
+## Development
+
+Simple way to start local server to debug:
+```bash
+python -m http.server 8000
+```
