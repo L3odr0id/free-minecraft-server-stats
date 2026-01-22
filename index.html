@@ -4,6 +4,8 @@
 <head>
     <title>Minecraft Server Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/nouislider@14.6.3/distribute/nouislider.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/nouislider@14.6.3/distribute/nouislider.min.js"></script>
     <style>
         body {
             font-family: sans-serif;
@@ -32,7 +34,44 @@
         <canvas id="statusChart"></canvas>
     </div>
 
+    <style>
+        .controls-container {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        .range-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        #timeRangeSlider {
+            margin: 0 10px;
+        }
+    </style>
+
+    <div class="controls-container">
+        <h4>Time Range Filter</h4>
+        <div class="range-info">
+            <span id="startDateLabel">Loading...</span>
+            <span id="endDateLabel">Loading...</span>
+        </div>
+        <div id="timeRangeSlider"></div>
+    </div>
+
     <script>
+        let playerChartInstance = null;
+        let statusChartInstance = null;
+        let allStatsData = [];
+
         async function loadDashboard() {
             let statsUrl = 'stats.json';
 
@@ -49,86 +88,143 @@
             statsUrl += `?t=${new Date().getTime()}`;
 
             const response = await fetch(statsUrl);
-            const data = await response.json();
+            allStatsData = await response.json();
 
-            const labels = data.map(entry => {
-                return new Date(entry.time).toLocaleString([], {
-                    year: 'numeric',
-                    month: 'numeric',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-            });
+            // Initialize noUiSlider
+            const sliderElement = document.getElementById('timeRangeSlider');
+            const totalPoints = allStatsData.length;
 
-            const playerCounts = data.map(entry => entry.players);
-
-            const statusValues = data.map(entry => entry.online ? 1 : 0);
-
-            new Chart(document.getElementById('playerChart'), {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Players Online',
-                        data: playerCounts,
-                        borderColor: '#3498db',
-                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
-                        fill: true,
-                        tension: 0.3
-                    }]
+            noUiSlider.create(sliderElement, {
+                start: [0, totalPoints - 1],
+                connect: true,
+                range: {
+                    'min': 0,
+                    'max': totalPoints - 1
                 },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
-                        }
-                    }
-                }
-            });
-
-            new Chart(document.getElementById('statusChart'), {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Status',
-                        data: statusValues,
-                        borderColor: '#2ecc71',
-                        borderWidth: 2,
-                        fill: false,
-                        stepped: true // This makes the line "square" (binary)
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            min: -0.1, // Add small padding so the line doesn't hug the edge
-                            max: 1.1,
-                            ticks: {
-                                callback: function (value) {
-                                    if (value === 1) return 'ONLINE';
-                                    if (value === 0) return 'OFFLINE';
-                                    return '';
-                                }
-                            }
-                        }
+                step: 1,
+                format: {
+                    to: function (value) {
+                        return parseInt(value);
                     },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function (context) {
-                                    return context.raw === 1 ? ' Status: Online' : ' Status: Offline';
+                    from: function (value) {
+                        return parseInt(value);
+                    }
+                }
+            });
+
+            function updateDateLabels(startIdx, endIdx) {
+                if (!allStatsData[startIdx] || !allStatsData[endIdx]) return;
+
+                const fmt = (d) => new Date(d).toLocaleString([], {
+                    year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+
+                document.getElementById('startDateLabel').textContent = fmt(allStatsData[startIdx].time);
+                document.getElementById('endDateLabel').textContent = fmt(allStatsData[endIdx].time);
+            }
+
+            function updateCharts(values) {
+                const start = parseInt(values[0]);
+                const end = parseInt(values[1]);
+
+                updateDateLabels(start, end);
+
+                const filteredData = allStatsData.slice(start, end + 1);
+
+                const labels = filteredData.map(entry => {
+                    return new Date(entry.time).toLocaleString([], {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                });
+
+                const playerCounts = filteredData.map(entry => entry.players);
+                const statusValues = filteredData.map(entry => entry.online ? 1 : 0);
+
+                if (playerChartInstance) {
+                    playerChartInstance.data.labels = labels;
+                    playerChartInstance.data.datasets[0].data = playerCounts;
+                    playerChartInstance.update();
+                } else {
+                    playerChartInstance = new Chart(document.getElementById('playerChart'), {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Players Online',
+                                data: playerCounts,
+                                borderColor: '#3498db',
+                                backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                                fill: true,
+                                tension: 0.3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        precision: 0
+                                    }
                                 }
                             }
                         }
-                    }
+                    });
                 }
+
+                if (statusChartInstance) {
+                    statusChartInstance.data.labels = labels;
+                    statusChartInstance.data.datasets[0].data = statusValues;
+                    statusChartInstance.update();
+                } else {
+                    statusChartInstance = new Chart(document.getElementById('statusChart'), {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Status',
+                                data: statusValues,
+                                borderColor: '#2ecc71',
+                                borderWidth: 2,
+                                fill: false,
+                                stepped: true // This makes the line "square" (binary)
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: {
+                                    min: -0.1, // Add small padding so the line doesn't hug the edge
+                                    max: 1.1,
+                                    ticks: {
+                                        callback: function (value) {
+                                            if (value === 1) return 'ONLINE';
+                                            if (value === 0) return 'OFFLINE';
+                                            return '';
+                                        }
+                                    }
+                                }
+                            },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (context) {
+                                            return context.raw === 1 ? ' Status: Online' : ' Status: Offline';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            sliderElement.noUiSlider.on('update', function (values, handle) {
+                updateCharts(values);
             });
         }
 
