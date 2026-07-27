@@ -24373,5 +24373,10 @@
     "time": "2026-07-27T10:55:41.565Z",
     "online": false,
     "players": 0
+  },
+  {
+    "time": "2026-07-27T13:33:50.389Z",
+    "online": true,
+    "players": 1
   }
 ]
